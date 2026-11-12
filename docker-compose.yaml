@@ -1,0 +1,36 @@
+services:
+  server:
+    build: ./server
+    ports:
+      - "8000:8000"
+    volumes:
+      # Live code reload during development (no rebuild needed)
+      - ./server:/app
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: digidog
+      DB_USER: digidog
+      DB_PASSWORD: digidog
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: digidog
+      POSTGRES_USER: digidog
+      POSTGRES_PASSWORD: digidog
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U digidog -d digidog"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  pgdata:
