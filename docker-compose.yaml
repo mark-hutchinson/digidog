@@ -12,6 +12,8 @@ services:
       DB_NAME: digidog
       DB_USER: digidog
       DB_PASSWORD: digidog
+      # Test value only, for local tesing. must be set to a different value
+      JWT_SECRET: z/sFwshjnbnlHK7+B6EgGEG+9v8/R97iFqCTdn9jzbA=
     depends_on:
       db:
         condition: service_healthy

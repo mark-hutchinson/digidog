@@ -5,6 +5,9 @@ RUN apt-get update \
     && docker-php-ext-install pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 
+# Never print errors into responses; log them to the container output instead
+RUN printf 'display_errors=Off\nlog_errors=On\n' > "$PHP_INI_DIR/conf.d/errors.ini"
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
