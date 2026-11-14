@@ -38,6 +38,7 @@ try {
 
     $db = new PDO($dsn, $dbUser, $dbPassword, $options);
 
+    // App handles all game logic
     $app = new \App($db, $config);
 
     $router = new \Bramus\Router\Router();
@@ -53,7 +54,16 @@ try {
     });
     $router->get('/v1/me', function () use ($app) {
         $playerId = $app->validateToken(getAuthToken());
-        httpOk(['playerId' => $playerId]); // TODO: return the player's details
+        httpOk($app->getMe($playerId));
+    });
+    $router->get('/v1/items', function () use ($app) {
+        $app->validateToken(getAuthToken());
+        httpOk($app->listShopItems());
+    });
+    $router->post('/v1/purchases', function () use ($app) {
+        $playerId = $app->validateToken(getAuthToken());
+        $request = new \Api\PurchaseRequest(readJsonBody());
+        httpOk($app->purchase($playerId, $request));
     });
     $router->set404(function () {
         // throwing an error here, so it is handled in the catch block below

@@ -31,4 +31,10 @@ class HttpException extends \RuntimeException
     {
         return new self(401, $message);
     }
+
+    /** The request is valid but the game state won't allow it, e.g. not enough money. */
+    public static function conflict(string $message = 'Conflict'): self
+    {
+        return new self(409, $message);
+    }
 }

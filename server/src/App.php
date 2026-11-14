@@ -5,6 +5,12 @@ use Api\AuthProvider;
 use Api\AuthRequest;
 use Api\AuthResponse;
 use Api\HttpException;
+use Api\ItemsResponse;
+use Api\MeResponse;
+use Api\Player;
+use Api\PurchaseRequest;
+use Api\PurchaseResponse;
+use Api\ShopItem;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
@@ -18,11 +24,64 @@ class App
 
     private PDO $db;
     private AppConfig $config;
+    private Inventory $inventory;
 
     public function __construct(PDO $db, AppConfig $appConfig)
     {
         $this->db = $db;
         $this->config = $appConfig;
+        $this->inventory = new Inventory($db);
+    }
+
+    public function getMe(int $playerId): MeResponse
+    {
+        $stmt = $this->db->prepare('SELECT player_id, name FROM player WHERE player_id = :player_id');
+        $stmt->execute(['player_id' => $playerId]);
+        $player = $stmt->fetch();
+        if ($player === false) {
+            // Valid token for a player that no longer exists.
+            throw HttpException::unauthorized('invalid token');
+        }
+
+        return new MeResponse(Player::fromRow($player), $this->inventory->list($playerId));
+    }
+
+    /** Everything the shop sells, cheapest first. */
+    public function listShopItems(): ItemsResponse
+    {
+        $stmt = $this->db->query(<<<SQL
+            SELECT item_id, slug, name, category, price, effects
+            FROM item
+            WHERE price IS NOT NULL
+            ORDER BY price, item_id
+        SQL);
+        return new ItemsResponse(array_map(ShopItem::fromRow(...), $stmt->fetchAll()));
+    }
+
+    /** POST /v1/purchases: pay for an item and add it to the inventory, all or nothing. */
+    public function purchase(int $playerId, PurchaseRequest $request): PurchaseResponse
+    {
+        $stmt = $this->db->prepare('SELECT price FROM item WHERE item_id = :item_id AND price IS NOT NULL');
+        $stmt->execute(['item_id' => $request->itemId]);
+        $price = $stmt->fetchColumn();
+        if ($price === false) {
+            throw HttpException::notFound('item not for sale');
+        }
+        $cost = (int) $price * $request->quantity;
+
+        $this->db->beginTransaction();
+        try {
+            if ($this->inventory->remove($playerId, Inventory::MONEY_ITEM_ID, $cost) === null) {
+                throw HttpException::conflict('not enough money');
+            }
+            $this->inventory->add($playerId, $request->itemId, $request->quantity);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        return new PurchaseResponse($this->inventory->list($playerId));
     }
 
     public function healthCheck(): HealthResponse
@@ -104,6 +163,9 @@ class App
                 'external_id' => $externalId,
                 'player_id'   => $playerId,
             ]);
+
+            // Every player has a money row from the start, so code never has to handle it missing.
+            $this->inventory->add($playerId, Inventory::MONEY_ITEM_ID, Inventory::STARTING_MONEY);
 
             $this->db->commit();
             return $playerId;
