@@ -2,6 +2,9 @@
 
 A simple "virtual pet" game. The backend is PHP, frontend in React/Typescript.
 
+## Disclaimer
+This is a toy project, the purpose of which is to help me remember how to code in PHP. It's not meant for production.
+
 ## Requirements
 - Docker
 
